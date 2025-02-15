@@ -1,0 +1,4 @@
+paho-mqtt
+smbus2
+math
+time
