@@ -14,7 +14,7 @@ import smbus2
 metaData = {
     "name": "Sky brightness using TSL2591",
     "description": "This module uses the TSL2591 sensor to measure the sky brightness.",
-    "module": "allsky_tsl2591SQM.py",
+    "module": "allsky_tsl2591SQM",
     "version": "v1.0.0",    
     "events": [
         "periodic"
@@ -23,8 +23,7 @@ metaData = {
     "arguments":{
         "extradatafilename": "allskytsl2591SQM.json",
         "period": 60,
-        "GA": 25.55,
-        "I2C Address": 0x29
+        "GA": 25.55
         },
     "argumentdetails": {
         "extradatafilename" : {
@@ -47,11 +46,6 @@ metaData = {
             "required": "true",
             "description": "Glass Attenuation Factor",
             "help": "Use this to adjust the sky brightness value to account for the glass attenuation factor"
-        },
-        "I2C Address" : {
-            "required": "false",
-            "description": "I2C Address",
-            "help": "Uused for now, the I2C address of the TSL2591 sensor, defaults to 0x29"
         }
     },
     "businfo": [
