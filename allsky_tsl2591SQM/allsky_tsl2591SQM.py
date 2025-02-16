@@ -335,13 +335,13 @@ def tsl2591SQM(params, event):
             # Calculate sky brightness
             if ((full_C - ir_C) != 0):
                 mpsas = round(M0 + GA - 2.5 * math.log10(full_C - ir_C), 2)
-                extra_data['mpsas'] = mpsas
-                result = extra_data
+                extra_data['AS_MPSAS'] = mpsas
+                result = f"MPSAS: {extra_data}"
                 s.log(1, f'INFO: {result}')
             else:
                 mpsas = -25.
-                extra_data['mpsas'] = mpsas
-                result = extra_data
+                extra_data['AS_MPSAS'] = mpsas
+                result = f"MPSAS: {extra_data}"
                 s.log(1, f'INFO: Sky brightness is out of range')
 
             s.log(1, f'INFO: Calculated mpsas value: {result}')
