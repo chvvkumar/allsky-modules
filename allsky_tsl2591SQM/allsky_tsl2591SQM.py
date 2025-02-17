@@ -22,7 +22,7 @@ metaData = {
     "experimental": "true",
     "arguments":{
         "extradatafilename": "allskytsl2591SQM.json",
-        "period": 60,
+        "period": 10,
         "GA": 25.55
         },
     "argumentdetails": {
