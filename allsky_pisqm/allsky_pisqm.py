@@ -190,6 +190,9 @@ class Tsl2591:
             full = self.read_word(REGISTER_CHAN0_LOW)
             ir = self.read_word(REGISTER_CHAN1_LOW)
             
+            # Debug Log to visualize the auto-ranging process
+            s.log(1, f"INFO: PiSQM Auto-Range [{attempt}]: Full={full}, Gain={self.gain}, Int={self.integration_time}")
+
             if full > 60000: 
                 changed = False
                 if self.gain > GAIN_LOW:
@@ -204,13 +207,24 @@ class Tsl2591:
                 if changed: continue 
                 else: break
 
-            if full < 200:
+            # Increase threshold from 200 to 2000 to encourage higher gain usage
+            if full < 2000:
                 changed = False
                 if self.gain < GAIN_MAX:
-                    if self.gain == GAIN_LOW: self.set_gain(GAIN_MED)
-                    elif self.gain == GAIN_MED: self.set_gain(GAIN_HIGH)
-                    elif self.gain == GAIN_HIGH: self.set_gain(GAIN_MAX)
-                    changed = True
+                    # Check if next gain step would likely saturate (approx 20x jump)
+                    # If full is 4000, 4000*20 = 80000 (Saturates). 
+                    # If full is 2000, 2000*20 = 40000 (Safe).
+                    
+                    if self.gain == GAIN_LOW: 
+                        self.set_gain(GAIN_MED)
+                        changed = True
+                    elif self.gain == GAIN_MED: 
+                        self.set_gain(GAIN_HIGH)
+                        changed = True
+                    elif self.gain == GAIN_HIGH: 
+                        self.set_gain(GAIN_MAX)
+                        changed = True
+                        
                 elif self.integration_time < INTEGRATIONTIME_600MS:
                     new_time = self.integration_time + 1
                     self.set_timing(new_time)
@@ -231,7 +245,7 @@ metaData = {
     "name": "PiSQM TSL2591",
     "description": "Reads Sky Quality (MPSAS) from TSL2591 and writes to JSON for Overlay",
     "module": "allsky_pisqm",
-    "version": "v1.0.4",
+    "version": "v1.0.5",
     "events": [
         "periodic",
         "night",
