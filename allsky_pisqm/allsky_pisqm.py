@@ -3,13 +3,8 @@ allsky_pisqm.py
 
 A Refactored AllSky Module for PiSQM (TSL2591)
 Original Author: chvvkumar
-Refactored for AllSky Module system from https://github.com/chvvkumar/PiSQM
+Refactored for AllSky Module system
 
-Heavily inspired by Richard's work on the ESP platform
-https://github.com/rabssm/Radiometer
-
-This module reads sky quality data from a TSL2591 light sensor connected via I2C and writes the
-calculated MPSAS value to a JSON file for AllSky Overlay.
 '''
 import allsky_shared as s
 import time
@@ -20,6 +15,7 @@ import sys
 
 # -------------------------------------------------------------------------
 # EMBEDDED TSL2591 DRIVER CLASS
+# Merged to ensure single-file portability within AllSky modules
 # -------------------------------------------------------------------------
 try:
     import smbus2
@@ -235,7 +231,7 @@ metaData = {
     "name": "PiSQM TSL2591",
     "description": "Reads Sky Quality (MPSAS) from TSL2591 and writes to JSON for Overlay",
     "module": "allsky_pisqm",
-    "version": "v1.0.3",
+    "version": "v1.0.4",
     "events": [
         "periodic",
         "night",
@@ -310,7 +306,6 @@ def pisqm(params, event):
             s.log(0, f"ERROR: Invalid I2C Address {i2c_addr_str}. Using default 0x29.")
             i2c_addr = 0x29
 
-        # Updated default file name to tsl2591.json
         json_path = params.get("json_file_path", "/home/pi/allsky/config/overlay/extra/tsl2591.json")
         
         # Parse Gain & Integration Overrides
@@ -332,14 +327,49 @@ def pisqm(params, event):
             "500ms": INTEGRATIONTIME_500MS,
             "600ms": INTEGRATIONTIME_600MS
         }
+        
+        # Reverse map for Memory restoration (MS -> Enum)
+        ms_to_enum = {
+            100: INTEGRATIONTIME_100MS,
+            200: INTEGRATIONTIME_200MS,
+            300: INTEGRATIONTIME_300MS,
+            400: INTEGRATIONTIME_400MS,
+            500: INTEGRATIONTIME_500MS,
+            600: INTEGRATIONTIME_600MS
+        }
+
+        # --- SMART MEMORY LOGIC ---
+        # Default start values (if no memory or manual)
+        start_gain = gain_map.get(ui_gain, GAIN_MED)
+        start_int = int_map.get(ui_int, INTEGRATIONTIME_200MS)
+        
+        # If in Auto mode, try to read last known good values from JSON
+        if ui_gain == "Auto" and ui_int == "Auto" and os.path.exists(json_path):
+            try:
+                with open(json_path, 'r') as f:
+                    last_data = json.load(f)
+                    
+                    if "AS_PISQM_GAIN" in last_data:
+                        # Restore Gain
+                        loaded_gain = int(last_data["AS_PISQM_GAIN"])
+                        # Simple validity check
+                        if loaded_gain in [GAIN_LOW, GAIN_MED, GAIN_HIGH, GAIN_MAX]:
+                            start_gain = loaded_gain
+                            
+                    if "AS_PISQM_INT" in last_data:
+                        # Restore Integration (JSON has ms integer, we need Enum)
+                        loaded_int_ms = int(last_data["AS_PISQM_INT"])
+                        if loaded_int_ms in ms_to_enum:
+                            start_int = ms_to_enum[loaded_int_ms]
+                            
+                s.log(1, f"INFO: PiSQM 'Smart Start' using Gain: {start_gain}, Int: {start_int}")
+            except Exception as e:
+                # If read fails, just proceed with defaults
+                s.log(1, f"WARN: PiSQM Memory Read Failed: {e}. Using defaults.")
 
         # Initialize Sensor
         try:
-            # We initialize with default or user manual settings
-            init_gain = gain_map.get(ui_gain, GAIN_MED)
-            init_int = int_map.get(ui_int, INTEGRATIONTIME_200MS)
-            
-            tsl = Tsl2591(i2c_bus=1, sensor_address=i2c_addr, integration=init_int, gain=init_gain)
+            tsl = Tsl2591(i2c_bus=1, sensor_address=i2c_addr, integration=start_int, gain=start_gain)
         except Exception as e:
             err_msg = f"Failed to initialize TSL2591 at {hex(i2c_addr)}: {e}. Check I2C connection."
             s.log(0, f"ERROR: {err_msg}")
@@ -347,14 +377,10 @@ def pisqm(params, event):
 
         # Measurement Logic
         if ui_gain == "Auto" and ui_int == "Auto":
-            # Fully Automatic
+            # Fully Automatic (will start from Smart Memory values)
             full, ir = tsl.advanced_read()
         else:
             # Manual Override
-            # TSL is already initialized with the correct manual settings in __init__
-            # If "Auto" was selected for one but not the other, we treat it as specific default (Med/200ms)
-            # because mixed auto/manual logic is complex. 
-            # If user wants manual, they generally override both or accept the default for the other.
             full, ir = tsl.forced_read()
             s.log(1, f"INFO: PiSQM using Manual Settings (Gain: {ui_gain}, Int: {ui_int})")
 
@@ -370,7 +396,6 @@ def pisqm(params, event):
         mpsas_str = f"{mpsas:.2f}"
         
         # Write to JSON for Overlay
-        # Updated to use AS_PISQM prefix
         sqm_data = {
             "AS_PISQM_MPSAS": float(mpsas_str),
             "AS_PISQM_GAIN": tsl.gain,
